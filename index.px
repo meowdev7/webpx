@@ -1,0 +1,69 @@
+use http;
+
+fix webpx = {};
+
+fix Router = () => {
+    let routes = [];
+    let middlewares = [];
+
+    func addRoute(method, path, handler) {
+        routes.push({ method, path, handler });
+    }
+
+    func handleRequest(req, res) {
+        let index = 0;
+
+        func next() {
+            if (index < middlewares.length) {
+                middlewares[index++](req, res, next);
+            } else {
+                let matched = false;
+                for (let route of routes) {
+                    if (req.method === route.method && req.url === route.path) {
+                        route.handler(req, res);
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    res.writeHead(404, { 'Content-Type': 'text/plain' });
+                    res.end('Not Found\n');
+                }
+            }
+        }
+
+        next();
+    }
+
+    return {
+        get: (path, handler) => addRoute('GET', path, handler),
+        post: (path, handler) => addRoute('POST', path, handler),
+        put: (path, handler) => addRoute('PUT', path, handler),
+        delete: (path, handler) => addRoute('DELETE', path, handler),
+        use: (middleware) => middlewares.push(middleware),
+        handleRequest
+    };
+};
+
+fix createApp = () => {
+    let router = Router();
+    let server = http.createServer((req, res) => router.handleRequest(req, res));
+
+    func listen(port, callback) {
+        server.listen(port, callback);
+        out(`Server is running at http://localhost:${port}/`);
+    }
+
+    return {
+        get: router.get,
+        post: router.post,
+        put: router.put,
+        delete: router.delete,
+        use: router.use,
+        listen
+    };
+};
+
+webpx.createApp = createApp;
+
+exp webpx;
